@@ -3,10 +3,29 @@ import { motion } from 'framer-motion'
 import { Search, Terminal, Activity, Star, GitFork, Users } from 'lucide-react'
 import axios from 'axios'
 
+const LANGUAGE_COLORS = {
+  JavaScript: '#f1e05a',
+  TypeScript: '#3178c6',
+  Python: '#3572A5',
+  Java: '#b07219',
+  'C++': '#f34b7d',
+  'C#': '#178600',
+  Ruby: '#701516',
+  Go: '#00ADD8',
+  Rust: '#dea584',
+  HTML: '#e34c26',
+  CSS: '#563d7c',
+  PHP: '#4F5D95',
+  Swift: '#F05138',
+  Kotlin: '#A97BFF',
+  Dart: '#00B4AB',
+}
+
 function App() {
   const [username, setUsername] = useState('')
   const [userData, setUserData] = useState(null)
   const [repos, setRepos] = useState([])
+  const [languageStats, setLanguageStats] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -18,6 +37,7 @@ function App() {
     setError('')
     setUserData(null)
     setRepos([])
+    setLanguageStats([])
 
     try {
       // Free REST API limit: 60 requests/hr (unauthenticated)
@@ -25,9 +45,33 @@ function App() {
       setUserData(userRes.data)
 
       const repoRes = await axios.get(
-        `https://api.github.com/users/${username}/repos?sort=updated&per_page=6`
+        `https://api.github.com/users/${username}/repos?sort=updated&per_page=100`
       )
-      setRepos(repoRes.data)
+      
+      const allRepos = repoRes.data
+      setRepos(allRepos.slice(0, 6))
+
+      // Calculate languages
+      const langs = {}
+      let totalLangs = 0
+      allRepos.forEach(repo => {
+        if (repo.language) {
+          langs[repo.language] = (langs[repo.language] || 0) + 1
+          totalLangs++
+        }
+      })
+      
+      const sortedLangs = Object.entries(langs)
+        .map(([name, count]) => ({
+          name,
+          count,
+          percentage: ((count / totalLangs) * 100).toFixed(1),
+          color: LANGUAGE_COLORS[name] || '#58a6ff'
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5) // Top 5 languages
+        
+      setLanguageStats(sortedLangs)
     } catch (err) {
       if (err.response && err.response.status === 404) {
         setError('User not found.')
@@ -133,6 +177,46 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {/* Language Stats */}
+            {languageStats.length > 0 && (
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="glass-panel p-8"
+              >
+                <h3 className="text-xl font-semibold mb-6 text-white">Top Languages</h3>
+                
+                {/* Progress Bar */}
+                <div className="w-full h-3 bg-surface rounded-full overflow-hidden flex mb-6 shadow-inner">
+                  {languageStats.map((lang) => (
+                    <motion.div 
+                      key={lang.name}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${lang.percentage}%` }}
+                      transition={{ duration: 1, delay: 0.2 }}
+                      style={{ backgroundColor: lang.color }}
+                      className="h-full hover:brightness-110 cursor-pointer"
+                      title={`${lang.name}: ${lang.percentage}%`}
+                    />
+                  ))}
+                </div>
+
+                {/* Legends */}
+                <div className="flex flex-wrap gap-6">
+                  {languageStats.map((lang) => (
+                    <div key={lang.name} className="flex items-center gap-2 text-sm text-text-muted">
+                      <span 
+                        className="w-3 h-3 rounded-full shadow-sm" 
+                        style={{ backgroundColor: lang.color }}
+                      />
+                      <span className="font-medium text-white">{lang.name}</span>
+                      <span>{lang.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
 
             {/* Repos Grid */}
             <h3 className="text-2xl font-semibold mt-12 mb-6">Recent Repositories</h3>
