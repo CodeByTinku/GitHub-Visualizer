@@ -69,7 +69,7 @@ function App() {
           color: LANGUAGE_COLORS[name] || '#58a6ff'
         }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 5) // Top 5 languages
+        .slice(0, 5) 
         
       setLanguageStats(sortedLangs)
     } catch (err) {
