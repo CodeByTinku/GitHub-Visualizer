@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Search, Terminal, Activity, Star, GitFork, Users } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown } from 'lucide-react'
 import axios from 'axios'
 import { GitHubCalendar } from 'react-github-calendar'
 
@@ -25,10 +25,13 @@ const LANGUAGE_COLORS = {
 function App() {
   const [username, setUsername] = useState('')
   const [userData, setUserData] = useState(null)
-  const [repos, setRepos] = useState([])
+  const [allRepos, setAllRepos] = useState([])
   const [languageStats, setLanguageStats] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  
+  const [sortBy, setSortBy] = useState('updated') // 'updated', 'stars', 'forks'
+  const [filterLang, setFilterLang] = useState('All')
 
   const fetchGithubData = async (e) => {
     e.preventDefault()
@@ -37,7 +40,7 @@ function App() {
     setLoading(true)
     setError('')
     setUserData(null)
-    setRepos([])
+    setAllRepos([])
     setLanguageStats([])
 
     try {
@@ -49,13 +52,13 @@ function App() {
         `https://api.github.com/users/${username}/repos?sort=updated&per_page=100`
       )
       
-      const allRepos = repoRes.data
-      setRepos(allRepos.slice(0, 6))
+      const fetchedRepos = repoRes.data
+      setAllRepos(fetchedRepos)
 
       // Calculate languages
       const langs = {}
       let totalLangs = 0
-      allRepos.forEach(repo => {
+      fetchedRepos.forEach(repo => {
         if (repo.language) {
           langs[repo.language] = (langs[repo.language] || 0) + 1
           totalLangs++
@@ -85,6 +88,18 @@ function App() {
       setLoading(false)
     }
   }
+
+  // Compute displayed repos based on filter and sort
+  const displayedRepos = useMemo(() => {
+    return allRepos
+      .filter(repo => filterLang === 'All' || repo.language === filterLang)
+      .sort((a, b) => {
+        if (sortBy === 'stars') return b.stargazers_count - a.stargazers_count
+        if (sortBy === 'forks') return b.forks_count - a.forks_count
+        return new Date(b.updated_at) - new Date(a.updated_at)
+      })
+      .slice(0, 10) // Show top 10
+  }, [allRepos, filterLang, sortBy])
 
   return (
     <div className="min-h-screen p-6 md:p-12 flex flex-col items-center">
@@ -240,43 +255,82 @@ function App() {
               </div>
             </motion.div>
 
-            {/* Repos Grid */}
-            <h3 className="text-2xl font-semibold mt-12 mb-6">Recent Repositories</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {repos.map((repo, i) => (
-                <motion.a
-                  href={repo.html_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  key={repo.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="glass-panel p-6 hover:border-primary/40 transition-colors group cursor-pointer block"
-                >
-                  <h4 className="text-lg font-semibold text-white group-hover:text-primary transition-colors mb-2 truncate">
-                    {repo.name}
-                  </h4>
-                  <p className="text-text-muted text-sm mb-4 line-clamp-2 min-h-[40px]">
-                    {repo.description || 'No description available.'}
-                  </p>
-                  <div className="flex items-center gap-4 text-xs text-text-muted">
-                    {repo.language && (
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-                        {repo.language}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Star size={14} /> {repo.stargazers_count}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <GitFork size={14} /> {repo.forks_count}
-                    </span>
-                  </div>
-                </motion.a>
-              ))}
+            {/* Filter and Sort Bar */}
+            <div className="flex flex-col md:flex-row justify-between items-center mt-12 mb-6 gap-4">
+              <h3 className="text-2xl font-semibold w-full md:w-auto text-left">Repositories</h3>
+              
+              <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                <div className="flex items-center bg-surface border border-border/50 rounded-xl px-3 py-2">
+                  <Filter size={16} className="text-text-muted mr-2" />
+                  <select 
+                    value={filterLang}
+                    onChange={(e) => setFilterLang(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-white cursor-pointer"
+                  >
+                    <option value="All" className="bg-surface text-white">All Languages</option>
+                    {languageStats.map(lang => (
+                      <option key={lang.name} value={lang.name} className="bg-surface text-white">{lang.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex items-center bg-surface border border-border/50 rounded-xl px-3 py-2">
+                  <ArrowUpDown size={16} className="text-text-muted mr-2" />
+                  <select 
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-white cursor-pointer"
+                  >
+                    <option value="updated" className="bg-surface text-white">Recently Updated</option>
+                    <option value="stars" className="bg-surface text-white">Most Stars</option>
+                    <option value="forks" className="bg-surface text-white">Most Forks</option>
+                  </select>
+                </div>
+              </div>
             </div>
+
+            <motion.div layout className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <AnimatePresence mode="popLayout">
+                {displayedRepos.map((repo) => (
+                  <motion.a
+                    href={repo.html_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    key={repo.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.3 }}
+                    className="glass-panel p-6 hover:border-primary/40 transition-colors group cursor-pointer block"
+                  >
+                    <h4 className="text-lg font-semibold text-white group-hover:text-primary transition-colors mb-2 truncate">
+                      {repo.name}
+                    </h4>
+                    <p className="text-text-muted text-sm mb-4 line-clamp-2 min-h-[40px]">
+                      {repo.description || 'No description available.'}
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-text-muted">
+                      {repo.language && (
+                        <span className="flex items-center gap-1.5">
+                          <span 
+                            className="w-2.5 h-2.5 rounded-full" 
+                            style={{ backgroundColor: LANGUAGE_COLORS[repo.language] || '#58a6ff' }}
+                          />
+                          {repo.language}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Star size={14} /> {repo.stargazers_count}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <GitFork size={14} /> {repo.forks_count}
+                      </span>
+                    </div>
+                  </motion.a>
+                ))}
+              </AnimatePresence>
+            </motion.div>
           </motion.div>
         )}
       </motion.div>
