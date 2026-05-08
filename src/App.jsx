@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Search, Terminal, Activity, Star, GitFork, Users } from 'lucide-react'
 import axios from 'axios'
+import { GitHubCalendar } from 'react-github-calendar'
 
 const LANGUAGE_COLORS = {
   JavaScript: '#f1e05a',
@@ -217,6 +218,27 @@ function App() {
                 </div>
               </motion.div>
             )}
+
+            {/* GitHub Contribution Calendar */}
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="glass-panel p-8 overflow-hidden w-full flex flex-col items-center"
+            >
+              <h3 className="text-xl font-semibold mb-6 text-white w-full text-left">Contribution Graph</h3>
+              <div className="w-full overflow-x-auto pb-2 flex justify-center text-white">
+                <GitHubCalendar 
+                  username={userData.login} 
+                  colorScheme="dark"
+                  theme={{
+                    dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'] // Classic GitHub Dark Mode Green
+                  }}
+                  blockSize={14}
+                  blockMargin={5}
+                  fontSize={14}
+                />
+              </div>
+            </motion.div>
 
             {/* Repos Grid */}
             <h3 className="text-2xl font-semibold mt-12 mb-6">Recent Repositories</h3>
