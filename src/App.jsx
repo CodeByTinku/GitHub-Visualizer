@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown } from 'lucide-react'
+import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award } from 'lucide-react'
 import axios from 'axios'
 import { GitHubCalendar } from 'react-github-calendar'
 
@@ -27,6 +27,7 @@ function App() {
   const [userData, setUserData] = useState(null)
   const [allRepos, setAllRepos] = useState([])
   const [languageStats, setLanguageStats] = useState([])
+  const [badges, setBadges] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   
@@ -42,6 +43,7 @@ function App() {
     setUserData(null)
     setAllRepos([])
     setLanguageStats([])
+    setBadges([])
 
     try {
       // Free REST API limit: 60 requests/hr (unauthenticated)
@@ -76,6 +78,26 @@ function App() {
         .slice(0, 5) 
         
       setLanguageStats(sortedLangs)
+
+      // Calculate Badges
+      const newBadges = []
+      const totalStars = fetchedRepos.reduce((sum, repo) => sum + repo.stargazers_count, 0)
+      
+      if (totalStars > 100) newBadges.push({ title: 'Star Magnet', icon: Sparkles, color: 'text-yellow-400', border: 'border-yellow-400/30', bg: 'bg-yellow-400/10' })
+      else if (totalStars > 10) newBadges.push({ title: 'Rising Star', icon: Star, color: 'text-yellow-200', border: 'border-yellow-200/30', bg: 'bg-yellow-200/10' })
+
+      if (Object.keys(langs).length >= 5) newBadges.push({ title: 'Polyglot', icon: Code2, color: 'text-purple-400', border: 'border-purple-400/30', bg: 'bg-purple-400/10' })
+
+      if (userRes.data.followers >= 40) newBadges.push({ title: 'Influencer', icon: Users, color: 'text-blue-400', border: 'border-blue-400/30', bg: 'bg-blue-400/10' })
+
+      const maxForks = fetchedRepos.length > 0 ? Math.max(...fetchedRepos.map(r => r.forks_count)) : 0
+      if (maxForks >= 10) newBadges.push({ title: 'Fork Master', icon: GitFork, color: 'text-green-400', border: 'border-green-400/30', bg: 'bg-green-400/10' })
+
+      if (fetchedRepos.length >= 30) newBadges.push({ title: 'Active Coder', icon: Terminal, color: 'text-emerald-400', border: 'border-emerald-400/30', bg: 'bg-emerald-400/10' })
+
+      if (newBadges.length === 0) newBadges.push({ title: 'Explorer', icon: Award, color: 'text-gray-400', border: 'border-gray-400/30', bg: 'bg-gray-400/10' })
+
+      setBadges(newBadges)
     } catch (err) {
       if (err.response && err.response.status === 404) {
         setError('User not found.')
@@ -191,6 +213,28 @@ function App() {
                     <span><strong className="text-white">{userData.public_repos}</strong> repos</span>
                   </div>
                 </div>
+
+                {/* Badges */}
+                {badges.length > 0 && (
+                  <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-6">
+                    {badges.map((badge, i) => {
+                      const Icon = badge.icon
+                      return (
+                        <motion.div
+                          key={badge.title}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.1 }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${badge.border} ${badge.bg} ${badge.color} text-xs font-semibold shadow-sm cursor-default`}
+                          title={badge.title}
+                        >
+                          <Icon size={14} />
+                          {badge.title}
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
