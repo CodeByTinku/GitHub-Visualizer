@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award } from 'lucide-react'
+import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download } from 'lucide-react'
 import axios from 'axios'
 import { GitHubCalendar } from 'react-github-calendar'
+import { toPng } from 'html-to-image'
 
 const LANGUAGE_COLORS = {
   JavaScript: '#f1e05a',
@@ -30,6 +31,9 @@ function App() {
   const [badges, setBadges] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [downloading, setDownloading] = useState(false)
+  
+  const profileRef = useRef(null)
   
   const [sortBy, setSortBy] = useState('updated') // 'updated', 'stars', 'forks'
   const [filterLang, setFilterLang] = useState('All')
@@ -123,6 +127,27 @@ function App() {
       .slice(0, 10) // Show top 10
   }, [allRepos, filterLang, sortBy])
 
+  const downloadProfileCard = async () => {
+    if (!profileRef.current) return
+    try {
+      setDownloading(true)
+      // Set background color explicitly for html-to-image to avoid transparency issues
+      const dataUrl = await toPng(profileRef.current, { 
+        cacheBust: true,
+        backgroundColor: '#161b22', // Match --color-surface
+        style: { transform: 'scale(1)', margin: '0' }
+      })
+      const link = document.createElement('a')
+      link.download = `${userData.login}-github-card.png`
+      link.href = dataUrl
+      link.click()
+    } catch (err) {
+      console.error('Failed to generate image', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen p-6 md:p-12 flex flex-col items-center">
       <motion.div
@@ -178,8 +203,21 @@ function App() {
             className="w-full space-y-8"
           >
             {/* Profile Card */}
-            <div className="glass-panel p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-purple-500" />
+            <div className="relative">
+              <button
+                onClick={downloadProfileCard}
+                disabled={downloading}
+                className="absolute top-4 right-4 z-20 bg-background/80 hover:bg-primary hover:text-white text-text-muted p-2 rounded-lg backdrop-blur transition-all disabled:opacity-50"
+                title="Download Profile Card"
+              >
+                <Download size={20} className={downloading ? 'animate-bounce' : ''} />
+              </button>
+
+              <div 
+                ref={profileRef}
+                className="glass-panel p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-purple-500" />
               
               <img 
                 src={userData.avatar_url} 
@@ -236,6 +274,7 @@ function App() {
                   </div>
                 )}
               </div>
+            </div>
             </div>
 
             {/* Language Stats */}
