@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download } from 'lucide-react'
+import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download, Flame, Trophy, Calendar } from 'lucide-react'
 import axios from 'axios'
 import { GitHubCalendar } from 'react-github-calendar'
 import { toPng } from 'html-to-image'
@@ -32,6 +32,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [downloading, setDownloading] = useState(false)
+  const [streakStats, setStreakStats] = useState(null)
   
   const profileRef = useRef(null)
   
@@ -48,6 +49,7 @@ function App() {
     setAllRepos([])
     setLanguageStats([])
     setBadges([])
+    setStreakStats(null)
 
     try {
       // Free REST API limit: 60 requests/hr (unauthenticated)
@@ -102,6 +104,43 @@ function App() {
       if (newBadges.length === 0) newBadges.push({ title: 'Explorer', icon: Award, color: 'text-gray-400', border: 'border-gray-400/30', bg: 'bg-gray-400/10' })
 
       setBadges(newBadges)
+
+      // Fetch contribution stats
+      try {
+        const contribRes = await axios.get(`https://github-contributions-api.deno.dev/${username}.json`);
+        
+        if (contribRes.data && contribRes.data.contributions) {
+          const totalContributions = contribRes.data.totalContributions || 0;
+          const days = contribRes.data.contributions.flat();
+          
+          let current = 0;
+          let best = 0;
+          
+          days.forEach(day => {
+            if (day.contributionCount > 0) {
+              current++;
+              if (current > best) best = current;
+            } else {
+              current = 0;
+            }
+          });
+          
+          let currentStreak = 0;
+          const todayIndex = days.length - 1;
+          for (let i = todayIndex; i >= 0; i--) {
+            if (days[i].contributionCount > 0) {
+              currentStreak++;
+            } else {
+              if (i === todayIndex) continue;
+              break;
+            }
+          }
+          
+          setStreakStats({ currentStreak, bestStreak: best, totalContributions });
+        }
+      } catch (err) {
+        console.error("Could not fetch contributions for streak stats", err);
+      }
     } catch (err) {
       if (err.response && err.response.status === 404) {
         setError('User not found.')
@@ -313,6 +352,48 @@ function App() {
                       <span>{lang.percentage}%</span>
                     </div>
                   ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* GitHub Stats Section */}
+            {streakStats && (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full"
+              >
+                <div className="glass-panel p-4 md:px-6 flex items-center gap-4 relative overflow-hidden group transition-all hover:-translate-y-1">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20 text-blue-400 z-10 shrink-0">
+                    <Calendar size={22} />
+                  </div>
+                  <div className="flex flex-col z-10">
+                    <p className="text-text-muted text-[11px] uppercase font-bold tracking-wider mb-1">Total Contribution</p>
+                    <h4 className="text-2xl font-bold text-white leading-none">{streakStats.totalContributions}</h4>
+                  </div>
+                </div>
+
+                <div className="glass-panel p-4 md:px-6 flex items-center gap-4 relative overflow-hidden group transition-all hover:-translate-y-1">
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="p-2.5 bg-orange-500/10 rounded-xl border border-orange-500/20 text-orange-400 z-10 shrink-0">
+                    <Flame size={22} />
+                  </div>
+                  <div className="flex flex-col z-10">
+                    <p className="text-text-muted text-[11px] uppercase font-bold tracking-wider mb-1">Current Streak</p>
+                    <h4 className="text-2xl font-bold text-white leading-none">{streakStats.currentStreak} <span className="text-sm font-medium text-text-muted">days</span></h4>
+                  </div>
+                </div>
+
+                <div className="glass-panel p-4 md:px-6 flex items-center gap-4 relative overflow-hidden group transition-all hover:-translate-y-1">
+                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="p-2.5 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-yellow-400 z-10 shrink-0">
+                    <Trophy size={22} />
+                  </div>
+                  <div className="flex flex-col z-10">
+                    <p className="text-text-muted text-[11px] uppercase font-bold tracking-wider mb-1">Best Streak</p>
+                    <h4 className="text-2xl font-bold text-white leading-none">{streakStats.bestStreak} <span className="text-sm font-medium text-text-muted">days</span></h4>
+                  </div>
                 </div>
               </motion.div>
             )}
