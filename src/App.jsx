@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download, Flame, Trophy, Calendar, GitCommit } from 'lucide-react'
+import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download, Flame, Trophy, Calendar, GitCommit, Link, Check } from 'lucide-react'
 import axios from 'axios'
 import { GitHubCalendar } from 'react-github-calendar'
 import { toPng } from 'html-to-image'
@@ -34,15 +34,27 @@ function App() {
   const [downloading, setDownloading] = useState(false)
   const [streakStats, setStreakStats] = useState(null)
   const [repoCommits, setRepoCommits] = useState([])
+  const [copied, setCopied] = useState(false)
   
   const profileRef = useRef(null)
   
   const [sortBy, setSortBy] = useState('updated') // 'updated', 'stars', 'forks'
   const [filterLang, setFilterLang] = useState('All')
 
-  const fetchGithubData = async (e) => {
-    e.preventDefault()
-    if (!username.trim()) return
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const userParam = params.get('user');
+    if (userParam) {
+      setUsername(userParam);
+      fetchGithubData(null, userParam);
+    }
+  }, []);
+
+  const fetchGithubData = async (e, customUsername = null) => {
+    if (e) e.preventDefault()
+    
+    const targetUser = customUsername || username;
+    if (!targetUser.trim()) return
 
     setLoading(true)
     setError('')
@@ -53,13 +65,16 @@ function App() {
     setStreakStats(null)
     setRepoCommits([])
 
+    const newUrl = `${window.location.pathname}?user=${targetUser}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+
     try {
       // Free REST API limit: 60 requests/hr (unauthenticated)
-      const userRes = await axios.get(`https://api.github.com/users/${username}`)
+      const userRes = await axios.get(`https://api.github.com/users/${targetUser}`)
       setUserData(userRes.data)
 
       const repoRes = await axios.get(
-        `https://api.github.com/users/${username}/repos?sort=updated&per_page=100`
+        `https://api.github.com/users/${targetUser}/repos?sort=updated&per_page=100`
       )
       
       const fetchedRepos = repoRes.data
@@ -109,7 +124,7 @@ function App() {
 
       // Fetch contribution stats
       try {
-        const contribRes = await axios.get(`https://github-contributions-api.deno.dev/${username}.json`);
+        const contribRes = await axios.get(`https://github-contributions-api.deno.dev/${targetUser}.json`);
         
         if (contribRes.data && contribRes.data.contributions) {
           const totalContributions = contribRes.data.totalContributions || 0;
@@ -152,7 +167,7 @@ function App() {
         
         const commitPromises = top10Repos.map(async (repo) => {
           try {
-            const res = await axios.get(`https://api.github.com/repos/${username}/${repo.name}/commits?per_page=1`);
+            const res = await axios.get(`https://api.github.com/repos/${targetUser}/${repo.name}/commits?per_page=1`);
             let count = res.data.length;
             const link = res.headers.link;
             if (link) {
@@ -272,14 +287,28 @@ function App() {
           >
             {/* Profile Card */}
             <div className="relative">
-              <button
-                onClick={downloadProfileCard}
-                disabled={downloading}
-                className="absolute top-4 right-4 z-20 bg-background/80 hover:bg-primary hover:text-white text-text-muted p-2 rounded-lg backdrop-blur transition-all disabled:opacity-50"
-                title="Download Profile Card"
-              >
-                <Download size={20} className={downloading ? 'animate-bounce' : ''} />
-              </button>
+              <div className="absolute top-4 right-4 z-20 flex gap-2">
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}${window.location.pathname}?user=${userData.login}`;
+                    navigator.clipboard.writeText(url);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="bg-background/80 hover:bg-primary hover:text-white text-text-muted p-2 rounded-lg backdrop-blur transition-all"
+                  title="Copy Profile Link"
+                >
+                  {copied ? <Check size={20} className="text-green-400" /> : <Link size={20} />}
+                </button>
+                <button
+                  onClick={downloadProfileCard}
+                  disabled={downloading}
+                  className="bg-background/80 hover:bg-primary hover:text-white text-text-muted p-2 rounded-lg backdrop-blur transition-all disabled:opacity-50"
+                  title="Download Profile Card"
+                >
+                  <Download size={20} className={downloading ? 'animate-bounce' : ''} />
+                </button>
+              </div>
 
               <div 
                 ref={profileRef}
