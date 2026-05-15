@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download, Flame, Trophy, Calendar } from 'lucide-react'
+import { Search, Terminal, Activity, Star, GitFork, Users, Filter, ArrowUpDown, Sparkles, Code2, Award, Download, Flame, Trophy, Calendar, GitCommit } from 'lucide-react'
 import axios from 'axios'
 import { GitHubCalendar } from 'react-github-calendar'
 import { toPng } from 'html-to-image'
@@ -33,6 +33,7 @@ function App() {
   const [error, setError] = useState('')
   const [downloading, setDownloading] = useState(false)
   const [streakStats, setStreakStats] = useState(null)
+  const [repoCommits, setRepoCommits] = useState([])
   
   const profileRef = useRef(null)
   
@@ -50,6 +51,7 @@ function App() {
     setLanguageStats([])
     setBadges([])
     setStreakStats(null)
+    setRepoCommits([])
 
     try {
       // Free REST API limit: 60 requests/hr (unauthenticated)
@@ -140,6 +142,33 @@ function App() {
         }
       } catch (err) {
         console.error("Could not fetch contributions for streak stats", err);
+      }
+
+      // Fetch commits for top 10 most starred repos
+      try {
+        const top10Repos = [...fetchedRepos]
+          .sort((a, b) => b.stargazers_count - a.stargazers_count)
+          .slice(0, 10);
+        
+        const commitPromises = top10Repos.map(async (repo) => {
+          try {
+            const res = await axios.get(`https://api.github.com/repos/${username}/${repo.name}/commits?per_page=1`);
+            let count = res.data.length;
+            const link = res.headers.link;
+            if (link) {
+              const match = link.match(/page=(\d+)>; rel="last"/);
+              if (match) count = parseInt(match[1], 10);
+            }
+            return { name: repo.name, commits: count };
+          } catch (e) {
+            return { name: repo.name, commits: 0 };
+          }
+        });
+        
+        const commitsData = await Promise.all(commitPromises);
+        setRepoCommits(commitsData.sort((a, b) => b.commits - a.commits).filter(r => r.commits > 0));
+      } catch (err) {
+        console.error("Could not fetch commits data", err);
       }
     } catch (err) {
       if (err.response && err.response.status === 404) {
@@ -418,6 +447,56 @@ function App() {
                 />
               </div>
             </motion.div>
+
+            {/* Top 10 Repos by Commits */}
+            {repoCommits.length > 0 && (
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="glass-panel p-8 w-full"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <GitCommit size={24} className="text-primary" />
+                  <h3 className="text-xl font-semibold text-white">Commits per Repo (Top 10)</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {repoCommits.map((repo, i) => {
+                    const maxCommits = Math.max(...repoCommits.map(r => r.commits)) || 1;
+                    const percentage = (repo.commits / maxCommits) * 100;
+                    
+                    return (
+                      <motion.div 
+                        key={repo.name}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, delay: i * 0.05 }}
+                        className="bg-surface/40 border border-border/50 rounded-xl p-4 hover:border-primary/40 hover:bg-surface/60 transition-all group relative overflow-hidden flex flex-col justify-center"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="flex justify-between items-center mb-3 relative z-10">
+                          <span className="text-white font-semibold truncate max-w-[70%] group-hover:text-primary transition-colors text-sm">{repo.name}</span>
+                          <div className="flex items-center gap-1.5 bg-background/60 px-2 py-1 rounded-md border border-border/40">
+                            <GitCommit size={14} className="text-text-muted group-hover:text-primary transition-colors" />
+                            <span className="text-text-muted text-xs font-medium group-hover:text-white transition-colors">{repo.commits}</span>
+                          </div>
+                        </div>
+                        <div className="w-full h-1.5 bg-background/80 rounded-full overflow-hidden relative z-10 shadow-inner">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%` }}
+                            transition={{ duration: 1, delay: 0.2 + (0.1 * i) }}
+                            className="h-full bg-gradient-to-r from-primary to-purple-500 rounded-full relative"
+                          >
+                            <div className="absolute inset-0 bg-white/20 blur-[2px]" />
+                          </motion.div>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              </motion.div>
+            )}
 
             {/* Filter and Sort Bar */}
             <div className="flex flex-col md:flex-row justify-between items-center mt-12 mb-6 gap-4">
