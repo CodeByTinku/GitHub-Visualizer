@@ -124,17 +124,26 @@ function App() {
 
       // Fetch contribution stats
       try {
-        const contribRes = await axios.get(`https://github-contributions-api.deno.dev/${targetUser}.json`);
-        
-        if (contribRes.data && contribRes.data.contributions) {
-          const totalContributions = contribRes.data.totalContributions || 0;
-          const days = contribRes.data.contributions.flat();
+        // The original deno.dev deployment is no longer available. Keep it as a
+        // fallback for compatibility, but use the maintained deployment first.
+        let contributionData;
+        try {
+          const contribRes = await axios.get(`https://github-contributions-api.kawarimidoll.deno.net/${targetUser}.json`);
+          contributionData = contribRes.data;
+        } catch {
+          const contribRes = await axios.get(`https://github-contributions-api.deno.dev/${targetUser}.json`);
+          contributionData = contribRes.data;
+        }
+
+        if (contributionData?.contributions) {
+          const totalContributions = Number(contributionData.totalContributions) || 0;
+          const days = contributionData.contributions.flat();
           
           let current = 0;
           let best = 0;
           
           days.forEach(day => {
-            if (day.contributionCount > 0) {
+            if (Number(day.contributionCount) > 0) {
               current++;
               if (current > best) best = current;
             } else {
@@ -145,7 +154,7 @@ function App() {
           let currentStreak = 0;
           const todayIndex = days.length - 1;
           for (let i = todayIndex; i >= 0; i--) {
-            if (days[i].contributionCount > 0) {
+            if (Number(days[i].contributionCount) > 0) {
               currentStreak++;
             } else {
               if (i === todayIndex) continue;
@@ -414,7 +423,28 @@ function App() {
               </motion.div>
             )}
 
-            {/* GitHub Stats Section */}
+            {/* GitHub Contribution Calendar */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="glass-panel p-8 overflow-hidden w-full flex flex-col items-center"
+            >
+              <h3 className="text-xl font-semibold mb-6 text-white w-full text-left">Contribution Graph</h3>
+              <div className="w-full overflow-x-auto pb-2 flex justify-center text-white">
+                <GitHubCalendar
+                  username={userData.login}
+                  colorScheme="dark"
+                  theme={{
+                    dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'] // Classic GitHub Dark Mode Green
+                  }}
+                  blockSize={14}
+                  blockMargin={5}
+                  fontSize={14}
+                />
+              </div>
+            </motion.div>
+
+            {/* Streak Analytics */}
             {streakStats && (
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
@@ -427,7 +457,7 @@ function App() {
                     <Calendar size={22} />
                   </div>
                   <div className="flex flex-col z-10">
-                    <p className="text-text-muted text-[11px] uppercase font-bold tracking-wider mb-1">Total Contribution</p>
+                    <p className="text-text-muted text-[11px] uppercase font-bold tracking-wider mb-1">Total Contributions</p>
                     <h4 className="text-2xl font-bold text-white leading-none">{streakStats.totalContributions}</h4>
                   </div>
                 </div>
@@ -455,27 +485,6 @@ function App() {
                 </div>
               </motion.div>
             )}
-
-            {/* GitHub Contribution Calendar */}
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="glass-panel p-8 overflow-hidden w-full flex flex-col items-center"
-            >
-              <h3 className="text-xl font-semibold mb-6 text-white w-full text-left">Contribution Graph</h3>
-              <div className="w-full overflow-x-auto pb-2 flex justify-center text-white">
-                <GitHubCalendar 
-                  username={userData.login} 
-                  colorScheme="dark"
-                  theme={{
-                    dark: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'] // Classic GitHub Dark Mode Green
-                  }}
-                  blockSize={14}
-                  blockMargin={5}
-                  fontSize={14}
-                />
-              </div>
-            </motion.div>
 
             {/* Top 10 Repos by Commits */}
             {repoCommits.length > 0 && (
